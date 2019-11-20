@@ -6,35 +6,9 @@ from ar_track_alvar_msgs.msg import AlvarMarker, AlvarMarkers
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from geometry_msgs.msg import Twist, Point, Quaternion
 
-class Transformer():
-    def __init__(self):
-        self.listen = tf.TransformListener()
-        self.br = tf.TransformBroadcaster()
-
-    def build_new_frame(self, parent_frame_id, new_frame_id, relative_rotation, relative_transition):
-        '''
-        Params: parent_frame_id, new_frame_id, relative_rotation, relative_transition
-        '''
-        self.br.sendTransform(
-            relative_transition,
-            relative_rotation,
-            rospy.Time.now(),
-            new_frame_id,
-            parent_frame_id,
-        )
-
-    def look_up_transform(self, from_frame_id, to_frame_id, time = rospy.Time(0)):
-        '''
-        Params: from_frame_id, to_frame_id, time = rospy.Time(0)
-        Returns: (trans, rot) from from_frame_id to to_frame_id
-        '''
-        trans, rots = self.listen.lookupTransform(
-            to_frame_id, from_frame_id, rospy.Time(0)
-        )
-        return trans, rots
+import utils
             
-
-class Search(smach.State):
+class SearchBox(smach.State):
     def __init__(self):
         smach.State.__init__(self, 
                             outcomes=['end', 'found'],
@@ -61,39 +35,50 @@ class Move(smach.State):
         smach.State.__init__(self, 
                             outcomes = ['end', 'failed', 'arrived'],
                             input_keys = ['Move_in_tag_id'])
-        self.transformer = Transformer()
+        self.transformer = utils.Transformer()
         self.client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
         self.client.wait_for_server()
 
     def execute(self, userdata):
+
+        if rospy.is_shutdown():
+            return 'end'
+
         tag_id = userdata.Move_in__tag_id
         box_edge_length = 0.334
         distance_to_box_center = 0.5
 
         tag_box_transition = (0, 0, box_edge_length/2)
         tag_box_rotation = (0, 0, 1, 0)
-        self.transformer.build_new_frame('ar_tag_'+ str(tag_id), 'box_ori_pose', tag_box_transition, tag_box_rotation)
+        self.transformer.build_new_frame('ar_tag_'+ str(tag_id), 'box_ori_pose',
+                                         tag_box_transition, tag_box_rotation
+                                        )
 
-        self.transformer.build_new_frame('box_ori_pose', 'box_front_park', (0, 0, distance_to_box_center), (0, 0, 0, 1)) #(0, 0, 0)
-        self.transformer.build_new_frame('box_ori_pose', 'box_back_park', (0, 0, - distance_to_box_center), (0, 0, 1, 0)) #(0, 0, 180)
-        self.transformer.build_new_frame('box_ori_pose', 'box_left_park', (0, - distance_to_box_center, 0), (0, 0, 0.707, 0.707)) #(0, 0, 90)
-        self.transformer.build_new_frame('box_ori_pose', 'box_right_park', (0, distance_to_box_center, 0), (0, 0, -0.707, 0.707)) #(0, 0, 90)
+        self.transformer.build_new_frame('box_ori_pose', 'box_front_park', 
+                                         (0, 0, distance_to_box_center), (0, 0, 0, 1)
+                                        ) #(0, 0, 0)
+        self.transformer.build_new_frame('box_ori_pose', 'box_back_park',
+                                         (0, 0, - distance_to_box_center), (0, 0, 1, 0)
+                                        ) #(0, 0, 180)
+        self.transformer.build_new_frame('box_ori_pose', 'box_left_park',
+                                         (0, - distance_to_box_center, 0), (0, 0, 0.707, 0.707)
+                                        ) #(0, 0, 90)
+        self.transformer.build_new_frame('box_ori_pose', 'box_right_park', 
+                                         (0, distance_to_box_center, 0), (0, 0, -0.707, 0.707)
+                                        ) #(0, 0, 90)
 
         rospy.sleep(0.5)
 
-        goal = MoveBaseGoal()
-        goal.target_pose.header.frame_id = "box_front"
-        goal.target_pose.pose.position = Point(0, 0, 0)
-        goal.target_pose.pose.orientation = Quaternion(0, 0, 0, 1)
+        goal = utils.goal_pose('box_back_park')
         self.client.send_goal(goal)
-        self.client.wait_for_result()
+        result = self.client.wait_for_result(rospy.Duration.from_sec(0))
+        
+        if result == False:
+            return 'failed'
+        return 'arrived'      
 
-        if rospy.is_shutdown():
-            return 'end'
-        return 'end'      
+if __name__ == "__main__":
 
-def main():
-    
     rospy.init_node("approach")
     
     approach_sm = smach.StateMachine(
@@ -101,7 +86,7 @@ def main():
                     output_keys = ['tag_id'])
 
     with approach_sm:
-        smach.StateMachine.add('Search', Search(),
+        smach.StateMachine.add('SearchBox', SearchBox(),
                                 transitions = { 'end':'end',
                                                 'found':'Move'},
                                 remapping={'Search_out_tag_id':'tag_id'})
@@ -114,6 +99,3 @@ def main():
     
     outcome = approach_sm.execute()
     rospy.spin()
-
-if __name__ == "__main__":
-    main()
