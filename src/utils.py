@@ -78,14 +78,14 @@ def rotate(angle=90, max_error=3, anglular_scale=1.0):
 
 class Transformer():
     def __init__(self):
-        self.listen = tf.TransformListener()
-        self.br = tf.TransformBroadcaster()
+        self.__listen = tf.TransformListener()
+        self.__br = tf.TransformBroadcaster()
 
     def build_new_frame(self, parent_frame_id, new_frame_id, relative_rotation, relative_transition):
         '''
         Params: parent_frame_id, new_frame_id, relative_rotation, relative_transition
         '''
-        self.br.sendTransform(
+        self.__br.sendTransform(
             relative_transition,
             relative_rotation,
             rospy.Time.now(),
@@ -98,7 +98,7 @@ class Transformer():
         Params: from_frame_id, to_frame_id, time = rospy.Time(0)
         Returns: (trans, rot) from from_frame_id to to_frame_id
         '''
-        trans, rots = self.listen.lookupTransform(
+        trans, rots = self.__listen.lookupTransform(
             to_frame_id, from_frame_id, rospy.Time(0)
         )
         return trans, rots
