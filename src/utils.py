@@ -81,9 +81,9 @@ class Transformer():
         self.__listen = tf.TransformListener()
         self.__br = tf.TransformBroadcaster()
 
-    def build_new_frame(self, parent_frame_id, new_frame_id, relative_rotation, relative_transition):
+    def build_new_frame(self, parent_frame_id, new_frame_id, relative_transition, relative_rotation):
         '''
-        Params: parent_frame_id, new_frame_id, relative_rotation, relative_transition
+        Params: parent_frame_id, new_frame_id, relative_transition, relative_rotation
         '''
         self.__br.sendTransform(
             relative_transition,

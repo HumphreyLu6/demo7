@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import rospy
 import smach, smach_ros
 import actionlib
@@ -5,6 +6,7 @@ import tf
 from ar_track_alvar_msgs.msg import AlvarMarker, AlvarMarkers
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from geometry_msgs.msg import Twist, Point, Quaternion
+from nav_msgs.msg import Odometry
 
 import utils
 
@@ -57,7 +59,8 @@ class SearchBox(smach.State):
 
                 tag_box_transition = (0, 0, box_edge_length/2)
                 tag_box_rotation = (0, 0, 1, 0)
-                self.transformer.build_new_frame('ar_tag_'+ str(self.ar_tag_id), 'box_center_pose',
+                print self.ar_tag_id
+                self.transformer.build_new_frame('ar_marker_'+ str(self.ar_tag_id), 'box_center_pose',
                                                 tag_box_transition, tag_box_rotation
                                                 )
 
@@ -80,7 +83,9 @@ class SearchBox(smach.State):
 
     def ar_tag_callback(self, msg):
         if self.ar_tag_id == None and len(msg.markers) != 0:
-            self.ar_tag_id = msg.markers[0].id
+            for marker in msg.markers:
+                if marker.id != 0:
+                    self.ar_tag_id = marker.id
 
 class Approach(smach.State):
     def __init__(self):
@@ -106,25 +111,41 @@ class Push(smach.State):
     def __init__(self):
         smach.State.__init__(self, 
                             outcomes = ['end', 'completed'])
-    
+        self.odom = None
+
     def execute(self, userdata):
         self.transformer = utils.Transformer()
-        tans, _ = self.transformer.look_up_transform('park_pose', 'box_center_pose')
+        trans, _ = self.transformer.look_up_transform('park_pose', 'box_center_pose')
+        self.odom = {}
+        self.odom_sub = rospy.Subscriber('/odom', Odometry, self.odom_callback)
+        rospy.wait_for_message('/odom', Odometry)
         while not rospy.is_shutdown():
-            print(tans)
+            print(trans)
         return 'end'
+    
+    def push_vertical(self, dist):
+        start_odom = self.odom.copy()
+        pass
+
+    def push_horizontal(self,dist):
+        pass
+    
+    def odom_callback(self, msg):
+        x = msg.pose.pose.position.x
+        y = msg.pose.pose.position.y
+
+        self.odom['x'] = x
+        self.odom['y'] = y
+
 
 if __name__ == "__main__":
 
-    rospy.init_node("approach")
+    rospy.init_node("demo7")
     
     approach_sm = smach.StateMachine(
                     outcomes = ['end', 'completed', 'failed'])
 
     with approach_sm:
-        smach.StateMachine.add('SearchParkTag', SearchBox(),
-                                transitions = { 'end':'end',
-                                                'found':'SearchBox'})
 
         smach.StateMachine.add('SearchBox', SearchBox(),
                                 transitions = { 'end':'end',
@@ -139,5 +160,8 @@ if __name__ == "__main__":
                                 transitions = { 'end':'end',
                                                 'completed':'completed'})
     
+        smach.StateMachine.add('SearchParkTag', SearchParkTag(),
+                                transitions = { 'end':'end',
+                                                'found':'SearchBox'})
     outcome = approach_sm.execute()
     rospy.spin()
