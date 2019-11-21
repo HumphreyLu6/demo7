@@ -135,7 +135,9 @@ class Approach(smach.State):
 
         utils.signal()
         #goal = utils.goal_pose('park_pose')
-        goal = utils.goal_pose('box_right_park')
+        while True:
+            break
+        goal = utils.goal_pose('box_front_park')
         self.client.send_goal(goal)
         result = self.client.wait_for_result(rospy.Duration.from_sec(0))
         utils.signal()
