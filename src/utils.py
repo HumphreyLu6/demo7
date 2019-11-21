@@ -49,6 +49,7 @@ def goal_pose(frame_id, point = Point(0, 0, 0), quaternion = Quaternion(0, 0, 0,
     Return: goal_pose
     '''  
     goal_pose = MoveBaseGoal()
+    goal_pose.target_pose.header.frame_id = frame_id
     goal_pose.target_pose.pose.position = point
     goal_pose.target_pose.pose.orientation = quaternion
     return goal_pose
@@ -85,13 +86,17 @@ class Transformer():
         '''
         Params: parent_frame_id, new_frame_id, relative_transition, relative_rotation
         '''
-        self.__br.sendTransform(
-            relative_transition,
-            relative_rotation,
-            rospy.Time.now(),
-            new_frame_id,
-            parent_frame_id,
-        )
+        try:
+            #print type(self.__br), parent_frame_id, new_frame_id, rospy.Time.now(), relative_transition, relative_rotation
+            self.__br.sendTransform(
+                relative_transition,
+                relative_rotation,
+                rospy.Time.now(),
+                new_frame_id,
+                parent_frame_id,
+            )
+        except Exception as e:
+            print "build new frame error:", e
 
     def look_up_transform(self, from_frame_id, to_frame_id, time = rospy.Time(0)):
         '''
